@@ -5,8 +5,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Raman Spectroscope</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
         .param-input {
             display: none;
+        }
+        .performance-box {
+            background-color: #f0f0f0;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .results-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .sample-panel {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        .matches-panel {
+            flex: 1; /* Take up equal space as sample panel */
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        .match-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .match-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .match-item.best {
+            border: 2px solid #4CAF50;
+            background-color: #f0f9e8;
+        }
+        .match-item.selected {
+            border: 2px solid #2196F3;
+            background-color: #e3f2fd;
+        }
+        .match-score {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c7fb8;
+            margin-bottom: 10px;
+        }
+        .match-comment {
+            font-style: italic;
+            color: #666;
+            margin: 5px 0;
+        }
+        .select-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .select-btn:hover {
+            background-color: #45a049;
         }
     </style>
     <script>
@@ -40,7 +115,20 @@
         }
     </script>
 </head>
-<body>    <h1>Upload Raman Spectrum CSV</h1>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages" style="margin-bottom: 20px;">
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}" style="padding: 10px; border-radius: 4px; margin-bottom: 10px; {% if category == 'success' %}background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724;{% elif category == 'error' %}background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24;{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    
+    <h1>Upload Raman Spectrum CSV</h1>
     <form action="/" method="post" enctype="multipart/form-data" id="upload-form">
         <input type="file" name="file" accept=".csv" required>
         <input type="text" name="sample_id" placeholder="Enter Sample ID" required>
@@ -59,65 +147,69 @@
             <input type="text" id="param" name="param" placeholder="">
         </div>
         
-        <button type="submit">Upload</button>    </form>    
+        <button type="submit">Upload</button>
+    </form>    
     <a href="/library_list" id="library-link">View Reference Library (Fast)</a>
     <a href="/library">View Reference Library (Traditional)</a>
     <a href="/sample_history">View Sample History</a>
-      <script>
-        // Add click event listener to the library link to record start time
-        document.getElementById('library-link').addEventListener('click', function() {
-            // Store the time in sessionStorage so it persists between pages
-            if (performance && performance.now) {
-                sessionStorage.setItem('libraryClickTime', performance.now());
-            }
-        });
-        
-        // Add event listener to the upload form to record start time
-        document.getElementById('upload-form').addEventListener('submit', function() {
-            // Store the time in localStorage so it persists even after page reload
-            if (performance && performance.now) {
-                localStorage.setItem('uploadStartTime', performance.now());
-            }
-        });
-        
-        // When the page loads with results, calculate the time taken
-        window.addEventListener('load', function() {
-            // Only calculate timing if we have results
-            if (document.querySelector('.performance-box')) {
-                const uploadTime = localStorage.getItem('uploadStartTime');
-                const loadCompletedTime = performance.now();
-                
-                if (uploadTime) {
-                    const totalTime = (loadCompletedTime - uploadTime) / 1000;
-                    document.getElementById('client-side-timing').textContent = totalTime.toFixed(4) + ' seconds (client-side)';
-                    
-                    // Clear the timing data after using it
-                    localStorage.removeItem('uploadStartTime');
-                }
-            }
-        });
-    </script>
-
-    {% if results %}
-    <div class="performance-box" style="background-color: #f0f0f0; padding: 8px; margin: 10px 0; border-radius: 4px;">
-        <p><strong>Performance:</strong> Spectrum processed in {{ processing_time|default('N/A') }} seconds (server-side)</p>
-        <p><strong>Total Load Time:</strong> <span id="client-side-timing">Calculating...</span></p>
-    </div>
-    {% endif %}
     
     {% if results %}
-    <h2>Results</h2>
-    <ul>
-    {% for key, value in results.items() %}
-    <li>{{ key }}: {{ value|round(2) * 100 }}%</li>
-    {% endfor %}
-    </ul>
-    <h2>Best Match: {{ best_match }} {{ score|round(2) * 100 }}%</h2>
-    <div>
-        <h3>Sample Plot</h3>
-        <img src="{{ url_for('sample_plot_retrieve', filename=sample_plot) }}" alt="Sample Spectrum">
-        <h3>Best Match Plot</h3>
-        <img src="{{ url_for('plot', filename=best_match + '_with_peaks.png') }}" alt="{{ best_match }} Spectrum">
+    <div class="performance-box">
+        <p><strong>Performance:</strong> Spectrum processed in {{ processing_time|default('N/A') }} seconds</p>
+    </div>
+    
+    <h2>Analysis Results</h2>
+    
+    <div class="results-container">
+        <!-- Left side: Sample spectrum -->
+        <div class="sample-panel">
+            <h3>Your Sample: {{ sample_id }}</h3>
+            <img src="{{ url_for('sample_plot_retrieve', filename=sample_plot) }}" alt="Sample Spectrum" style="width: 100%; max-width: 600px;">
+        </div>
+          <!-- Right side: Best matches -->
+        <div class="matches-panel">
+            <h3>Best Matches</h3>
+            {% set sorted_results = results.items()|sort(reverse=True, attribute='1') %}
+            {% for material_id, match_score in sorted_results[:3] %}
+                <div class="match-item {% if material_id == best_match %}best{% endif %}">
+                    <div class="match-score">
+                        {{ material_id }}: {{ (match_score * 100)|round(2) }}% match
+                        {% if material_id == best_match %}<span style="color: #4CAF50;"> (BEST MATCH)</span>{% endif %}
+                    </div>
+                    
+                    <img src="{{ url_for('plot', filename=material_id + '_with_peaks.png') }}" 
+                         alt="{{ material_id }} Spectrum" 
+                         style="width: 100%;">
+                    
+                    <div style="text-align: center; margin-top: 10px;">
+                        <form action="/save_manual_selection" method="post" style="display: inline;">
+                            <input type="hidden" name="sample_id" value="{{ sample_id }}">
+                            <input type="hidden" name="material_id" value="{{ material_id }}">
+                            <input type="hidden" name="match_score" value="{{ match_score }}">
+                            <button type="submit" class="select-btn">
+                                Select as Best Match
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <h3>All Material Matches</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f0f0f0;">
+                <th style="text-align: left; padding: 8px; border: 1px solid #ddd;">Material ID</th>
+                <th style="text-align: right; padding: 8px; border: 1px solid #ddd;">Match Score</th>
+            </tr>
+            {% for material_id, match_score in sorted_results %}
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;">{{ material_id }}</td>
+                <td style="text-align: right; padding: 8px; border: 1px solid #ddd;">{{ (match_score * 100)|round(2) }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
     </div>
     {% endif %}
 </body>

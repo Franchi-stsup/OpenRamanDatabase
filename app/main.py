@@ -1,10 +1,11 @@
-from flask import Flask, request, render_template, send_from_directory, redirect
+from flask import Flask, request, render_template, send_from_directory, redirect, flash
 import os
 import sqlite3
 import time
 from app.utils import *
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Generate a secure secret key
 db_file_path = 'app/database/microplastics_reference.db'  # Path to SQLite database
 
 @app.route('/', methods=['GET', 'POST'])
@@ -16,8 +17,7 @@ def index():
         file = request.files['file']
         sample_id = request.form.get('sample_id')
         algorithm = request.form.get('algorithm')
-        param = request.form.get('param')
-
+        param = request.form.get('param')        
         if file and sample_id:
             best_match, results, plot_file = process_and_compare_sample(file, sample_id, algorithm, param)
             
@@ -25,8 +25,12 @@ def index():
             processing_time = time.time() - start_time
             print(f"Spectrum processing time: {processing_time:.4f} seconds")
 
-            return render_template('index.html', results=results, best_match=best_match, 
-                                 score=results[best_match], sample_plot=plot_file,
+            return render_template('index.html', 
+                                 results=results, 
+                                 best_match=best_match, 
+                                 score=results[best_match], 
+                                 sample_plot=plot_file,
+                                 sample_id=sample_id,
                                  processing_time=f"{processing_time:.4f}")
 
     return render_template('index.html', results=None, best_match=None, score=None, sample_plot=None)
@@ -187,6 +191,52 @@ def get_spectrum(material_id):
                           plot_file=plot_file,
                           comment=comment,
                           load_time=elapsed_time)
+
+@app.route('/save_manual_selection', methods=['POST'])
+def save_manual_selection():
+    """
+    Handle manual selection of a best match.
+    This route is called when a user manually selects a match from the UI.
+    It updates the sample_bank database with the selected match.
+    """
+    sample_id = request.form.get('sample_id')
+    material_id = request.form.get('material_id')
+    match_score = request.form.get('match_score')
+    
+    if sample_id and material_id and match_score:
+        try:
+            match_score_float = float(match_score)
+            
+            # Update the existing sample in the database
+            conn = sqlite3.connect(db_file_path)
+            cursor = conn.cursor()
+            
+            # Update all entries for this sample_id to set the new best match
+            cursor.execute("""
+                UPDATE sample_bank 
+                SET best_match=?, similarity_score=?
+                WHERE sample_id=?
+            """, (material_id, match_score_float, sample_id))
+            
+            # Check if any rows were updated
+            if cursor.rowcount > 0:
+                conn.commit()
+                flash(f"Successfully updated best match to '{material_id}' for sample '{sample_id}' with {(match_score_float * 100):.2f}% similarity", "success")
+            else:
+                flash(f"No sample found with ID '{sample_id}' to update", "error")
+                
+        except ValueError:
+            flash("Invalid match score provided", "error")
+        except Exception as e:
+            flash(f"Error updating sample: {str(e)}", "error")
+        finally:
+            if 'conn' in locals():
+                conn.close()
+    else:
+        flash("Missing required information to save selection", "error")
+    
+    # Redirect back to the main page to show the updated results
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
