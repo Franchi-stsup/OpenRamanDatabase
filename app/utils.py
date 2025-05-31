@@ -9,7 +9,7 @@ from numpy.polynomial.polynomial import Polynomial #for polynomial fitting algor
 import pandas as pd
 import pywt #for wavelet algorithm
 
-height_threshold = 0.6
+height_threshold = 0.4 # Height threshold for peak detection
 
 db_file_path = 'app/database/microplastics_reference.db'  # Path to SQLite database
 
@@ -267,7 +267,7 @@ def process_and_compare_sample(file, sample_id, algorithm, param):
     else:
         normalized_sample_intensities = normalize_data(sample_intensities) # No baseline correction applied
 
-    #save_to_csv(corrected_sample_intensities, sample_wavelengths, sample_id) #for troubleshooting
+    # save_to_csv(corrected_sample_intensities, sample_wavelengths, sample_id) #for troubleshooting
     # Calculate peaks and find the best match
     sample_peaks = process_spectrum(normalized_sample_intensities, sample_wavelengths)
     results, best_match = calculate_similarity(sample_peaks)
@@ -279,6 +279,7 @@ def process_and_compare_sample(file, sample_id, algorithm, param):
     normalized_ref_intensities = normalize_data(ref_intensities)
     add_sample_to_bank(sample_id, normalized_sample_intensities, sample_wavelengths, best_match, best_match)
     # Plot the sample with the matched reference
+
     plot_file = plot_sample_with_reference(
         sample_id,
         sample_wavelengths,

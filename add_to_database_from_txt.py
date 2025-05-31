@@ -5,7 +5,7 @@ import sqlite3
 import pandas as pd
 
 # Set root directory for raw data files and SQLite database path
-root_folder = 'SLoPP-E'  # Adjust this to your actual path
+root_folder = 'OPENRAMANDATABASE'  # Adjust this to your actual path
 db_file_path = 'app/database/microplastics_reference.db'  # SQLite database path
 
 # Prepare a connection to the SQLite database
