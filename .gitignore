@@ -1,4 +1,4 @@
 #Ignore plots: 
-/app/plots/
+/app/plots/*.png
 /app/plots_2/
-/sample_plots/
+/sample_plots/*.png
