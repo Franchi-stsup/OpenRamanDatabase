@@ -1,7 +1,8 @@
-from flask import Flask, request, render_template, send_from_directory, redirect, flash
+from flask import Flask, request, render_template, send_from_directory, redirect, flash, session
 import os
 import sqlite3
 import time
+from datetime import datetime
 from app.utils import *
 
 app = Flask(__name__)
@@ -15,10 +16,15 @@ def index():
         start_time = time.time()
         
         file = request.files['file']
-        sample_id = request.form.get('sample_id')
+        location = request.form.get('location', '').strip().upper()
+        sample_type = request.form.get('sample_type', '').strip()
         algorithm = request.form.get('algorithm')
-        param = request.form.get('param')        
-        if file and sample_id:
+        param = request.form.get('param')
+        
+        if file and location and sample_type:
+            # Generate sample ID in LOC-TYP-YYMMDD-SEQ format
+            sample_id = generate_sample_id(location, sample_type)
+            
             best_match, results, plot_file = process_and_compare_sample(file, sample_id, algorithm, param)
             
             # Calculate processing time
@@ -34,6 +40,32 @@ def index():
                                  processing_time=f"{processing_time:.4f}")
 
     return render_template('index.html', results=None, best_match=None, score=None, sample_plot=None)
+
+
+def generate_sample_id(location, sample_type):
+    """
+    Generate a sample ID in the format LOC-TYP-YYMMDD-SEQ
+    where SEQ is a 3-digit sequence number (000-999) that increments per session.
+    """
+    # Get current date in YYMMDD format
+    today = datetime.now()
+    date_str = today.strftime('%y%m%d')
+    
+    # Initialize sequence counter in session if it doesn't exist
+    if 'sequence_counter' not in session:
+        session['sequence_counter'] = 0
+    
+    # Get and increment sequence number
+    sequence_num = session['sequence_counter']
+    session['sequence_counter'] = (sequence_num + 1) % 1000  # Reset after 999
+    
+    # Format sequence as 3-digit string with leading zeros
+    seq_str = f"{sequence_num:03d}"
+    
+    # Create sample ID
+    sample_id = f"{location}-{sample_type}-{date_str}-{seq_str}"
+    
+    return sample_id
 
 @app.route('/library', methods=['GET', 'POST'])
 def library():
@@ -94,10 +126,14 @@ def update_comment():
         return redirect('/library')
 @app.route('/add_sample', methods=['POST'])
 def add_sample():
-    sample_id = request.form.get('sample_id')
+    location = request.form.get('location', '').strip().upper()
+    sample_type = request.form.get('sample_type', '').strip()
     file = request.files.get('file')
 
-    if sample_id and file:
+    if location and sample_type and file:
+        # Generate sample ID using the new nomenclature
+        sample_id = generate_sample_id(location, sample_type)
+        
         df = process_uploaded_file(file)
         intensities = df.iloc[:, 0].tolist()
         wave_numbers = df.iloc[:, 1].tolist()

@@ -79,13 +79,48 @@
             cursor: pointer;
             font-weight: bold;
             transition: background-color 0.3s;
-        }
-        .select-btn:hover {
+        }        .select-btn:hover {
             background-color: #45a049;
         }
+        
+        /* Navigation button styling */
+        .nav-btn {
+            display: inline-block;
+            padding: 10px 16px;
+            margin: 5px 10px 5px 0;
+            background-color: #f8f9fa;
+            color: #495057;
+            text-decoration: none;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .nav-btn:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+            color: #495057;
+            text-decoration: none;
+        }
+        
+        .upload-btn {
+            background-color: #6c757d;
+            color: white;
+            border: 1px solid #6c757d;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .upload-btn:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
     </style>
-    <script>
-        function updateParameterInput() {
+    <script>        function updateParameterInput() {
             const algorithm = document.getElementById('algorithm').value;
             const paramInput = document.getElementById('param-input');
             paramInput.style.display = 'none';  // Hide parameters input by default
@@ -113,25 +148,44 @@
                     break;
             }
         }
+        
+        function updateSamplePreview() {
+            const location = document.getElementById('location').value.toUpperCase() || 'LOC';
+            const sampleType = document.getElementById('sample_type').value || 'TYP';
+            const today = new Date();
+            const yymmdd = today.getFullYear().toString().substr(-2) + 
+                          (today.getMonth() + 1).toString().padStart(2, '0') + 
+                          today.getDate().toString().padStart(2, '0');
+            
+            const preview = `${location}-${sampleType}-${yymmdd}-SEQ`;
+            document.getElementById('sample-preview').textContent = preview;
+        }
+        
+        // Add event listeners when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('location').addEventListener('input', updateSamplePreview);
+            document.getElementById('sample_type').addEventListener('input', updateSamplePreview);
+            updateSamplePreview(); // Initial preview
+        });
     </script>
 </head>
-<body>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="flash-messages" style="margin-bottom: 20px;">
-                {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}" style="padding: 10px; border-radius: 4px; margin-bottom: 10px; {% if category == 'success' %}background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724;{% elif category == 'error' %}background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24;{% endif %}">
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
-    
-    <h1>Upload Raman Spectrum CSV</h1>
+<body>    <h1>Upload Raman Spectrum CSV</h1>
     <form action="/" method="post" enctype="multipart/form-data" id="upload-form">
         <input type="file" name="file" accept=".csv" required>
-        <input type="text" name="sample_id" placeholder="Enter Sample ID" required>
+        
+        <div style="margin: 10px 0;">
+            <label for="location">Location (LOC):</label>
+            <input type="text" id="location" name="location" placeholder="e.g., LAB1, FIELD" maxlength="10" required style="margin-left: 10px;">
+        </div>
+        
+        <div style="margin: 10px 0;">
+            <label for="sample_type">Sample Type (TYP):</label>
+            <input type="text" id="sample_type" name="sample_type" placeholder="e.g., Microplastic, Sediment, Water" required style="margin-left: 10px;">
+        </div>
+        
+        <div style="margin: 10px 0; color: #666; font-size: 0.9em;">
+            Sample ID will be generated as: <span id="sample-preview">LOC-TYP-YYMMDD-SEQ</span>
+        </div>
 
         <label for="algorithm">Choose Baseline Correction Algorithm:</label>
         <select id="algorithm" name="algorithm" onchange="updateParameterInput()">
@@ -144,14 +198,12 @@
 
         <div id="param-input" class="param-input">
             <label id="param-label" for="param"></label>
-            <input type="text" id="param" name="param" placeholder="">
-        </div>
+            <input type="text" id="param" name="param" placeholder="">        </div>
         
-        <button type="submit">Upload</button>
+        <button type="submit" class="upload-btn">Upload</button>
     </form>    
-    <a href="/library_list" id="library-link">View Reference Library (Fast)</a>
-    <a href="/library">View Reference Library (Traditional)</a>
-    <a href="/sample_history">View Sample History</a>
+    <a href="/library_list" class="nav-btn">View Reference Library (Fast)</a>
+    <a href="/sample_history" class="nav-btn">View Sample History</a>
     
     {% if results %}
     <div class="performance-box">
@@ -166,33 +218,33 @@
             <h3>Your Sample: {{ sample_id }}</h3>
             <img src="{{ url_for('sample_plot_retrieve', filename=sample_plot) }}" alt="Sample Spectrum" style="width: 100%; max-width: 600px;">
         </div>
-          <!-- Right side: Best matches -->
+        
+        <!-- Right side: Best matches -->
         <div class="matches-panel">
             <h3>Best Matches</h3>
-            {% set sorted_results = results.items()|sort(reverse=True, attribute='1') %}
-            {% for material_id, match_score in sorted_results[:3] %}
-                <div class="match-item {% if material_id == best_match %}best{% endif %}">
-                    <div class="match-score">
-                        {{ material_id }}: {{ (match_score * 100)|round(2) }}% match
-                        {% if material_id == best_match %}<span style="color: #4CAF50;"> (BEST MATCH)</span>{% endif %}
-                    </div>
-                    
-                    <img src="{{ url_for('plot', filename=material_id + '_with_peaks.png') }}" 
-                         alt="{{ material_id }} Spectrum" 
-                         style="width: 100%;">
-                    
-                    <div style="text-align: center; margin-top: 10px;">
-                        <form action="/save_manual_selection" method="post" style="display: inline;">
-                            <input type="hidden" name="sample_id" value="{{ sample_id }}">
-                            <input type="hidden" name="material_id" value="{{ material_id }}">
-                            <input type="hidden" name="match_score" value="{{ match_score }}">
-                            <button type="submit" class="select-btn">
+            <form action="/save_manual_selection" method="post">
+                <input type="hidden" name="sample_id" value="{{ sample_id }}">
+                {% set sorted_results = results.items()|sort(reverse=True, attribute='1') %}
+                {% for material_id, match_score in sorted_results[:3] %}
+                    <div class="match-item {% if material_id == best_match %}best{% endif %}">
+                        <div class="match-score">
+                            {{ material_id }}: {{ (match_score * 100)|round(2) }}% match
+                            {% if material_id == best_match %}<span style="color: #4CAF50;"> (BEST MATCH)</span>{% endif %}
+                        </div>
+                        
+                        <img src="{{ url_for('plot', filename=material_id + '_with_peaks.png') }}" 
+                             alt="{{ material_id }} Spectrum" 
+                             style="width: 100%;">
+                        
+                        <div style="text-align: center; margin-top: 10px;">
+                            <button type="submit" name="material_id" value="{{ material_id }}" class="select-btn">
                                 Select as Best Match
                             </button>
-                        </form>
+                            <input type="hidden" name="match_score" value="{{ match_score }}">
+                        </div>
                     </div>
-                </div>
-            {% endfor %}
+                {% endfor %}
+            </form>
         </div>
     </div>
     
