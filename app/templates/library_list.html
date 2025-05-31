@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reference Library - ID List</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .layout-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .id-panel {
+            flex: 0 0 300px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: calc(100vh - 170px);
+            overflow-y: auto;
+        }
+        .spectrum-panel {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            min-height: calc(100vh - 170px);
+        }
+        .material-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .material-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .material-item:hover {
+            background-color: #f5f5f5;
+        }
+        .material-item.active {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+        #spectrum-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.3);
+            border-radius: 50%;
+            border-top-color: #000;
+            animation: spin 1s ease-in-out infinite;
+            margin: auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .nav-links {
+            margin-bottom: 20px;
+        }
+        .nav-links a {
+            margin-right: 15px;
+            text-decoration: none;
+            color: #0066cc;
+        }
+        .performance-box {
+            background-color: #f0f0f0;
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .search-container {
+            padding: 10px;
+            position: sticky;
+            top: 0;
+            background-color: white;
+            border-bottom: 1px solid #ddd;
+            z-index: 100;
+        }
+        #search-input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .no-results {
+            padding: 15px;
+            color: #666;
+            font-style: italic;
+        }
+        .comment-preview {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store timing info for client-side measurement
+            const clickTime = sessionStorage.getItem('libraryClickTime');
+            const timingElement = document.getElementById('client-side-timing');
+            
+            if (clickTime && performance && performance.now) {
+                const loadTime = (performance.now() - clickTime) / 1000;
+                if (timingElement) {
+                    timingElement.textContent = `${loadTime.toFixed(4)} seconds (client-side)`;
+                }
+                sessionStorage.removeItem('libraryClickTime');
+            } else {
+                if (timingElement) {
+                    timingElement.textContent = "N/A - Direct page load";
+                }
+            }
+            
+            // Initialize search functionality
+            const searchInput = document.getElementById('search-input');
+            searchInput.addEventListener('input', filterMaterialIds);
+            
+            // Show initial item count
+            updateVisibleCount();
+            
+            // Check for URL parameter to auto-select a spectrum
+            const urlParams = new URLSearchParams(window.location.search);
+            const autoSelectId = urlParams.get('id');
+            if (autoSelectId) {
+                const item = document.querySelector(`.material-item[data-id="${autoSelectId}"]`);
+                if (item) {
+                    setTimeout(() => {
+                        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        item.click();
+                    }, 500);
+                }
+            }
+        });
+
+        // Function to load a spectrum when clicked
+        function loadSpectrum(materialId, element) {
+            // Clear active state from all items
+            document.querySelectorAll('.material-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Set active state on clicked item
+            if (element) {
+                element.classList.add('active');
+            }
+            
+            const container = document.getElementById('spectrum-container');
+            container.innerHTML = '<div class="loading"></div> Loading spectrum...';
+            
+            // Record start time for this specific operation
+            const startTime = performance.now();
+            
+            // Fetch the spectrum HTML
+            fetch(`/spectrum/${materialId}`)
+                .then(response => response.text())
+                .then(html => {
+                    container.innerHTML = html;
+                    
+                    // Calculate and log load time
+                    const loadTime = (performance.now() - startTime) / 1000;
+                    console.log(`Spectrum ${materialId} loaded in ${loadTime.toFixed(4)} seconds (client-side)`);
+                    
+                    // Update URL without reloading page
+                    const url = new URL(window.location);
+                    url.searchParams.set('id', materialId);
+                    window.history.pushState({}, '', url);
+                })
+                .catch(error => {
+                    container.innerHTML = `<p>Error loading spectrum: ${error.message}</p>`;
+                });
+        }
+        
+        // Function to filter material IDs based on search input
+        function filterMaterialIds() {
+            const searchInput = document.getElementById('search-input');
+            const searchTerm = searchInput.value.toLowerCase();
+            const items = document.querySelectorAll('.material-item');
+            let visibleCount = 0;
+            
+            items.forEach(item => {
+                const id = item.getAttribute('data-id').toLowerCase();
+                const comment = item.getAttribute('data-comment').toLowerCase();
+                
+                if (id.includes(searchTerm) || comment.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Show/hide no results message
+            const noResults = document.getElementById('no-results');
+            if (visibleCount === 0) {
+                noResults.style.display = 'block';
+            } else {
+                noResults.style.display = 'none';
+            }
+            
+            // Update count
+            updateVisibleCount(visibleCount);
+        }
+        
+        // Update the visible items counter
+        function updateVisibleCount(count) {
+            const totalCount = document.querySelectorAll('.material-item').length;
+            const visibleCount = count !== undefined ? count : totalCount;
+            const countElement = document.getElementById('visible-count');
+            
+            if (countElement) {
+                countElement.textContent = `Showing ${visibleCount} of ${totalCount} materials`;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Reference Library - Microplastics List (Total IDs: {{ total_ids }})</h1>
+    
+    <div class="nav-links">
+        <a href="/">Back to Home</a>
+        <a href="/library">View Traditional Library (slower)</a>
+    </div>
+    
+    {% if load_time is defined %}
+    <div class="performance-box">
+        <p><strong>Performance:</strong> Library list loaded in {{ "%.4f"|format(load_time) }} seconds (server-side)</p>
+        <p><strong>Total Load Time:</strong> <span id="client-side-timing">Calculating...</span></p>
+    </div>
+    {% endif %}
+    
+    <div class="layout-container">
+        <div class="id-panel">
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Search by ID or comment...">
+                <div id="visible-count" style="margin-top: 5px; font-size: 0.9em; color: #666;"></div>
+            </div>
+            <div id="no-results" class="no-results" style="display: none;">No matching materials found</div>
+            <ul class="material-list">
+                {% for material_id in material_ids %}
+                <li class="material-item" 
+                    onclick="loadSpectrum('{{ material_id }}', this)"
+                    data-id="{{ material_id }}"
+                    data-comment="{{ comments[material_id]|default('') }}">
+                    <strong>{{ material_id }}</strong>
+                    {% if comments[material_id] %}
+                    <div class="comment-preview">{{ comments[material_id]|truncate(30) }}</div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="spectrum-panel">
+            <div id="spectrum-container">
+                <p style="color: #666; text-align: center; margin-top: 50px;">Click on a material ID from the list to view its spectrum</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

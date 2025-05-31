@@ -42,3 +42,6 @@ You can aslo download as zip and cd into the directory containing the dockerfile
    docker compose build
    docker compose up
    ```
+
+## Regenerate plots 
+python -c "from app.utils import generate_plots; generate_plots()"

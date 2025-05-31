@@ -40,9 +40,8 @@
         }
     </script>
 </head>
-<body>
-    <h1>Upload Raman Spectrum CSV</h1>
-    <form action="/" method="post" enctype="multipart/form-data">
+<body>    <h1>Upload Raman Spectrum CSV</h1>
+    <form action="/" method="post" enctype="multipart/form-data" id="upload-form">
         <input type="file" name="file" accept=".csv" required>
         <input type="text" name="sample_id" placeholder="Enter Sample ID" required>
 
@@ -60,12 +59,52 @@
             <input type="text" id="param" name="param" placeholder="">
         </div>
         
-        <button type="submit">Upload</button>
-    </form>
-
-    <a href="/library">View Reference Library</a>
+        <button type="submit">Upload</button>    </form>    
+    <a href="/library_list" id="library-link">View Reference Library (Fast)</a>
+    <a href="/library">View Reference Library (Traditional)</a>
     <a href="/sample_history">View Sample History</a>
+      <script>
+        // Add click event listener to the library link to record start time
+        document.getElementById('library-link').addEventListener('click', function() {
+            // Store the time in sessionStorage so it persists between pages
+            if (performance && performance.now) {
+                sessionStorage.setItem('libraryClickTime', performance.now());
+            }
+        });
+        
+        // Add event listener to the upload form to record start time
+        document.getElementById('upload-form').addEventListener('submit', function() {
+            // Store the time in localStorage so it persists even after page reload
+            if (performance && performance.now) {
+                localStorage.setItem('uploadStartTime', performance.now());
+            }
+        });
+        
+        // When the page loads with results, calculate the time taken
+        window.addEventListener('load', function() {
+            // Only calculate timing if we have results
+            if (document.querySelector('.performance-box')) {
+                const uploadTime = localStorage.getItem('uploadStartTime');
+                const loadCompletedTime = performance.now();
+                
+                if (uploadTime) {
+                    const totalTime = (loadCompletedTime - uploadTime) / 1000;
+                    document.getElementById('client-side-timing').textContent = totalTime.toFixed(4) + ' seconds (client-side)';
+                    
+                    // Clear the timing data after using it
+                    localStorage.removeItem('uploadStartTime');
+                }
+            }
+        });
+    </script>
 
+    {% if results %}
+    <div class="performance-box" style="background-color: #f0f0f0; padding: 8px; margin: 10px 0; border-radius: 4px;">
+        <p><strong>Performance:</strong> Spectrum processed in {{ processing_time|default('N/A') }} seconds (server-side)</p>
+        <p><strong>Total Load Time:</strong> <span id="client-side-timing">Calculating...</span></p>
+    </div>
+    {% endif %}
+    
     {% if results %}
     <h2>Results</h2>
     <ul>

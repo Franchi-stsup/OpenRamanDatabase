@@ -3,14 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reference Library</title>
+    <title>Reference Library</title>    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get the click time from sessionStorage if it exists
+            const clickTime = sessionStorage.getItem('libraryClickTime');
+            const timingElement = document.getElementById('client-side-timing');
+            
+            if (clickTime && performance && performance.now) {
+                // Calculate time elapsed since the user clicked the link
+                const loadTime = (performance.now() - clickTime) / 1000;
+                if (timingElement) {
+                    timingElement.textContent = `${loadTime.toFixed(4)} seconds (client-side)`;
+                }
+                // Clear the stored time
+                sessionStorage.removeItem('libraryClickTime');
+            } else {
+                // No click time stored, so this was a direct page load (not from link click)
+                if (timingElement) {
+                    timingElement.textContent = "N/A - Direct page load";
+                }
+            }
+        });
+    </script>
 </head>
-<body>
-    <h1>Reference Library (Total IDs: {{ total_ids }})</h1> <!-- Display total IDs here -->
+<body>    <h1>Reference Library (Total IDs: {{ total_ids }})</h1> <!-- Display total IDs here -->
     <a href="/">Back to Home</a>
     <form action="/library" method="post">
         <button type="submit">Reset and Replot</button>
-    </form>
+    </form>    {% if load_time is defined %}
+    <div style="background-color: #f0f0f0; padding: 8px; margin: 10px 0; border-radius: 4px;">
+        <p><strong>Performance:</strong> Library loaded in {{ "%.4f"|format(load_time) }} seconds (server-side)</p>
+        <p><strong>Total Load Time:</strong> <span id="client-side-timing">Calculating...</span></p>
+        {% if plot_time is defined and plot_time %}
+        <p><strong>Plot Generation:</strong> {{ "%.4f"|format(plot_time) }} seconds to generate all plots</p>
+        {% endif %}
+    </div>
+    {% endif %}
     <div>
         {% for plot in plots %}
         <form action="/update_comment" method="post">

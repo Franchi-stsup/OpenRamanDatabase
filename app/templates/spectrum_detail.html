@@ -1,0 +1,51 @@
+<div class="spectrum-detail">
+    <h2>{{ material_id }}</h2>
+    
+    <img src="{{ url_for('plot', filename=plot_file) }}" alt="{{ material_id }} Spectrum" style="max-width: 100%; height: auto;">
+    
+    <form action="/update_comment" method="post" id="comment-form-{{ material_id }}" style="margin-top: 15px;">
+        <label for="comment-{{ material_id }}"><strong>Comment:</strong></label>
+        <textarea name="comment" id="comment-{{ material_id }}" style="width: 100%; min-height: 80px; margin-top: 5px; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">{{ comment }}</textarea>
+        <button type="submit" style="margin-top: 10px; padding: 6px 12px; background-color: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer;">Save Comment</button>
+    </form>
+    
+    <p style="margin-top: 15px; color: #666;"><small>Loaded in {{ "%.4f"|format(load_time) }} seconds</small></p>
+
+    <script>
+        // Prevent form submission from reloading the whole page
+        document.getElementById('comment-form-{{ material_id }}').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const form = this;
+            const formData = new FormData(form);
+            
+            fetch('/update_comment', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Show success message
+                    const message = document.createElement('div');
+                    message.textContent = 'Comment saved successfully!';
+                    message.style.color = 'green';
+                    message.style.marginTop = '5px';
+                    
+                    // If there's already a success message, remove it
+                    const existingMessage = form.querySelector('.success-message');
+                    if (existingMessage) {
+                        existingMessage.remove();
+                    }
+                    
+                    message.className = 'success-message';
+                    form.appendChild(message);
+                    
+                    // Remove message after 3 seconds
+                    setTimeout(() => {
+                        message.remove();
+                    }, 3000);
+                }
+            });
+        });
+    </script>
+</div>

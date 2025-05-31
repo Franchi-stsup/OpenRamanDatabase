@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template, send_from_directory, redirect
 import os
 import sqlite3
+import time
 from app.utils import *
 
 app = Flask(__name__)
@@ -9,23 +10,35 @@ db_file_path = 'app/database/microplastics_reference.db'  # Path to SQLite datab
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
+        # Start timing the processing
+        start_time = time.time()
+        
         file = request.files['file']
         sample_id = request.form.get('sample_id')
         algorithm = request.form.get('algorithm')
         param = request.form.get('param')
 
         if file and sample_id:
+            best_match, results, plot_file = process_and_compare_sample(file, sample_id, algorithm, param)
+            
+            # Calculate processing time
+            processing_time = time.time() - start_time
+            print(f"Spectrum processing time: {processing_time:.4f} seconds")
 
-            best_match, results, plot_file= process_and_compare_sample(file, sample_id, algorithm, param)
-
-            return render_template('index.html', results=results, best_match=best_match, score=results[best_match], sample_plot=plot_file)
+            return render_template('index.html', results=results, best_match=best_match, 
+                                 score=results[best_match], sample_plot=plot_file,
+                                 processing_time=f"{processing_time:.4f}")
 
     return render_template('index.html', results=None, best_match=None, score=None, sample_plot=None)
 
 @app.route('/library', methods=['GET', 'POST'])
 def library():
+    # Start timing the function execution
+    start_time = time.time()
+    plot_time = None
+    
     if request.method == 'POST':
-        generate_plots()
+        plot_time = generate_plots()
 
     plots = os.listdir('app/plots')
 
@@ -36,7 +49,13 @@ def library():
         comments[material_id] = comment
 
     total_ids = len(reference_spectra_ids)
-    return render_template('library.html', plots=plots, total_ids=total_ids, comments=comments)
+    
+    # Calculate the elapsed time
+    elapsed_time = time.time() - start_time
+    print(f"Library route execution time: {elapsed_time:.4f} seconds")
+    
+    return render_template('library.html', plots=plots, total_ids=total_ids, comments=comments, 
+                          load_time=elapsed_time, plot_time=plot_time)
 
 @app.route('/plots/<filename>')
 def plot(filename):
@@ -58,8 +77,17 @@ def update_comment():
     cursor.execute("UPDATE microplastics SET Comment=? WHERE ID=?", (new_comment, material_id))
     conn.commit()
     conn.close()
+    
+    # Clear the comment cache for this material
+    if hasattr(get_comment, 'cache_clear'):
+        get_comment.cache_clear()
 
-    return redirect('/library')
+    # Check if this is an AJAX request by examining headers
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return '', 204  # Return success but no content
+    else:
+        # If it's a regular form submission, redirect
+        return redirect('/library')
 @app.route('/add_sample', methods=['POST'])
 def add_sample():
     sample_id = request.form.get('sample_id')
@@ -104,5 +132,61 @@ def delete_sample():
             os.remove(plot_file_path)
 
     return redirect('/sample_history')
+
+@app.route('/library_list', methods=['GET'])
+def library_list():
+    # Start timing the function execution
+    start_time = time.time()
+    
+    # Get all comments and IDs in a single query (much faster)
+    print("Getting all comments in a single query...")
+    comments = get_all_comments()
+    material_ids = list(comments.keys())
+    total_ids = len(material_ids)
+    
+    # Calculate the elapsed time
+    elapsed_time = time.time() - start_time
+    print(f"Library list route execution time: {elapsed_time:.4f} seconds")
+    
+    return render_template('library_list.html', material_ids=material_ids, 
+                           total_ids=total_ids, comments=comments, load_time=elapsed_time)
+
+@app.route('/spectrum/<material_id>', methods=['GET'])
+def get_spectrum(material_id):
+    start_time = time.time()
+    
+    # Check if plot already exists
+    plot_file = f'{material_id}_with_peaks.png'
+    plot_path = os.path.join('app', 'plots', plot_file)
+    
+    # If plot doesn't exist, generate it
+    if not os.path.exists(plot_path):
+        intensities, wavelengths, _ = get_spectrum_data(material_id)
+        
+        if intensities and wavelengths:
+            peaks, _ = find_peaks(intensities, height=height_threshold)
+            peak_wavelengths = [wavelengths[i] for i in peaks]
+            peak_intensities = [intensities[i] for i in peaks]
+            
+            plot_spectrum(
+                wavelengths,
+                intensities,
+                list(zip(peak_wavelengths, peak_intensities)),
+                material_id,
+                f'{material_id}_with_peaks.png'
+            )
+    
+    # Get comment using the cached function
+    comment = get_comment(material_id)
+    
+    elapsed_time = time.time() - start_time
+    print(f"Spectrum load time for {material_id}: {elapsed_time:.4f} seconds")
+    
+    return render_template('spectrum_detail.html', 
+                          material_id=material_id, 
+                          plot_file=plot_file,
+                          comment=comment,
+                          load_time=elapsed_time)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
