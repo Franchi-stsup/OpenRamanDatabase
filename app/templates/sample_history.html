@@ -4,28 +4,293 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sample History</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .nav-links {
+            margin-bottom: 20px;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: #0066cc;
+            padding: 8px 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .nav-links a:hover {
+            background-color: #e9ecef;
+        }
+        .layout-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .samples-panel {
+            flex: 0 0 350px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            height: calc(100vh - 170px);
+            overflow-y: auto;
+        }
+        .spectrum-panel {
+            flex: 1;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            min-height: calc(100vh - 170px);
+        }
+        .search-container {
+            padding: 10px;
+            position: sticky;
+            top: 0;
+            background-color: white;
+            border-bottom: 1px solid #ddd;
+            z-index: 100;
+        }
+        #search-input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .search-info {
+            margin-top: 8px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .no-results {
+            padding: 15px;
+            color: #666;
+            font-style: italic;
+            display: none;
+        }
+        .sample-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        .sample-item {
+            padding: 15px 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sample-item:hover {
+            background-color: #f5f5f5;
+        }
+        .sample-item.active {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+        .sample-id {
+            font-weight: bold;
+            color: #333;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+            opacity: 1;
+        }
+        .sample-item:hover .delete-btn {
+            opacity: 1;
+        }
+        #spectrum-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.3);
+            border-radius: 50%;
+            border-top-color: #000;
+            animation: spin 1s ease-in-out infinite;
+            margin: auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spectrum-plot {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .sample-details {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .sample-details h3 {
+            margin-top: 0;
+            color: #333;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize search functionality
+            const searchInput = document.getElementById('search-input');
+            searchInput.addEventListener('input', filterSamples);
+            
+            // Show initial item count
+            updateVisibleCount();
+        });
+
+        // Function to load a sample spectrum when clicked
+        function loadSampleSpectrum(sampleId, element, event) {
+            // Prevent triggering if delete button was clicked
+            if (event.target.classList.contains('delete-btn')) {
+                return;
+            }
+            
+            // Clear active state from all items
+            document.querySelectorAll('.sample-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Set active state on clicked item
+            if (element) {
+                element.classList.add('active');
+            }
+            
+            const container = document.getElementById('spectrum-container');
+            container.innerHTML = '<div class="loading"></div> Loading spectrum...';
+            
+            // Check if a plot exists for this sample
+            const plotExists = samplePlots.includes(`sample_${sampleId}_with_match.png`);
+            
+            if (plotExists) {
+                container.innerHTML = `
+                    <div class="sample-details">
+                        <h3>Sample: ${sampleId}</h3>
+                        <p>Spectrum analysis with best match comparison</p>
+                    </div>
+                    <img src="/sample_plots/sample_${sampleId}_with_match.png" 
+                         alt="Sample ${sampleId} Spectrum" 
+                         class="spectrum-plot"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div style="display: none; padding: 20px; text-align: center; color: #666;">
+                        <p>Spectrum plot not available for this sample.</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="sample-details">
+                        <h3>Sample: ${sampleId}</h3>
+                        <p style="color: #dc3545;">No spectrum plot available for this sample</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Function to filter samples based on search input
+        function filterSamples() {
+            const searchInput = document.getElementById('search-input');
+            const searchTerm = searchInput.value.toLowerCase();
+            const items = document.querySelectorAll('.sample-item');
+            let visibleCount = 0;
+            
+            items.forEach(item => {
+                const sampleId = item.getAttribute('data-sample-id').toLowerCase();
+                
+                if (sampleId.includes(searchTerm)) {
+                    item.style.display = '';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Show/hide no results message
+            const noResults = document.getElementById('no-results');
+            if (visibleCount === 0 && searchTerm !== '') {
+                noResults.style.display = 'block';
+            } else {
+                noResults.style.display = 'none';
+            }
+            
+            // Update count
+            updateVisibleCount(visibleCount);
+        }
+        
+        // Update the visible items counter
+        function updateVisibleCount(count) {
+            const totalCount = document.querySelectorAll('.sample-item').length;
+            const visibleCount = count !== undefined ? count : totalCount;
+            const countElement = document.getElementById('visible-count');
+            
+            if (countElement) {
+                countElement.textContent = `Showing ${visibleCount} of ${totalCount} samples`;
+            }
+        }
+        
+        // Make sample plots available to JavaScript
+        const samplePlots = {{ plots|tojson }};
+    </script>
 </head>
 <body>
-    <h1>Sample History</h1>
-    <a href="/">Back to Home</a>
-    <ul>
-    {% for sample in samples %}
-        <li>
-            {{ sample }}
-            <!-- Delete form -->
-            <form action="/delete_sample" method="post" style="display:inline;">
-                <input type="hidden" name="sample_id" value="{{ sample }}">
-                <button type="submit">Delete</button>
-            </form>
-        </li>
-    {% endfor %}
-    </ul>
-    <h2>Sample Plots</h2>
-    <div>
-    {% for plot in plots %}
-        <h3>{{ plot.split('_')[1] }}</h3>
-        <img src="{{ url_for('plot', filename=plot) }}" alt="{{ plot.split('_')[0] }} Spectrum">
-    {% endfor %}
+    <h1>Sample History (Total Samples: {{ samples|length }})</h1>
+    
+    <div class="nav-links">
+        <a href="/">Back to Home</a>
+        <a href="/library_list">View Reference Library</a>
+    </div>
+    
+    <div class="layout-container">
+        <div class="samples-panel">
+            <div class="search-container">
+                <input type="text" id="search-input" placeholder="Search samples by ID...">
+                <div id="visible-count" class="search-info"></div>
+            </div>
+            <div id="no-results" class="no-results">No matching samples found</div>
+            <ul class="sample-list">
+            {% for sample in samples %}
+                <li class="sample-item" 
+                    onclick="loadSampleSpectrum('{{ sample }}', this, event)"
+                    data-sample-id="{{ sample }}">
+                    <span class="sample-id">{{ sample }}</span>
+                    <!-- Delete form -->
+                    <form action="/delete_sample" method="post" style="display:inline;">
+                        <input type="hidden" name="sample_id" value="{{ sample }}">
+                        <button type="submit" class="delete-btn" 
+                                onclick="return confirm('Are you sure you want to delete sample {{ sample }}?')">
+                            Delete
+                        </button>
+                    </form>
+                </li>
+            {% endfor %}
+            </ul>
+        </div>
+        <div class="spectrum-panel">
+            <div id="spectrum-container">
+                <p style="color: #666; text-align: center; margin-top: 50px;">
+                    Click on a sample ID from the list to view its spectrum
+                </p>
+            </div>
+        </div>
     </div>
 </body>
 </html>
