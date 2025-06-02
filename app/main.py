@@ -233,7 +233,7 @@ def save_manual_selection():
     """
     Handle manual selection of a best match.
     This route is called when a user manually selects a match from the UI.
-    It updates the sample_bank database with the selected match.
+    It updates the sample_bank database with the selected match and regenerates the plot.
     """
     sample_id = request.form.get('sample_id')
     material_id = request.form.get('material_id')
@@ -257,6 +257,10 @@ def save_manual_selection():
             # Check if any rows were updated
             if cursor.rowcount > 0:
                 conn.commit()
+                
+                # Regenerate the plot with the new best match
+                regenerate_sample_plot_with_new_match(sample_id, material_id)
+                
                 flash(f"Successfully updated best match to '{material_id}' for sample '{sample_id}' with {(match_score_float * 100):.2f}% similarity", "success")
             else:
                 flash(f"No sample found with ID '{sample_id}' to update", "error")
@@ -273,6 +277,45 @@ def save_manual_selection():
     
     # Redirect back to the main page to show the updated results
     return redirect('/')
+
+
+def regenerate_sample_plot_with_new_match(sample_id, new_match_id):
+    """
+    Regenerate the sample plot with the new manually selected best match.
+    """
+    try:
+        # Get sample data from database
+        sample_intensities, sample_wavelengths = get_sample_data(sample_id)
+        
+        if not sample_intensities or not sample_wavelengths:
+            print(f"No sample data found for {sample_id}")
+            return
+        
+        # Get the new reference match data
+        ref_intensities, ref_wavelengths, _ = get_spectrum_data(new_match_id)
+        
+        if not ref_intensities or not ref_wavelengths:
+            print(f"No reference data found for {new_match_id}")
+            return
+        
+        # Normalize both datasets
+        normalized_sample_intensities = normalize_data(sample_intensities)
+        normalized_ref_intensities = normalize_data(ref_intensities)
+        
+        # Generate the new plot with the manually selected match
+        plot_sample_with_reference(
+            sample_id,
+            sample_wavelengths,
+            normalized_sample_intensities,
+            ref_wavelengths,
+            normalized_ref_intensities,
+            new_match_id
+        )
+        
+        print(f"Successfully regenerated plot for sample {sample_id} with new match {new_match_id}")
+        
+    except Exception as e:
+        print(f"Error regenerating plot for sample {sample_id}: {str(e)}")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
