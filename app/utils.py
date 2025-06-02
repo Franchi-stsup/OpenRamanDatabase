@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for web applications
 import matplotlib.pyplot as plt
 import os
 from scipy.signal import find_peaks
