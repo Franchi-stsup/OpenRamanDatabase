@@ -187,7 +187,70 @@ def plot_spectrum(wavelengths, intensities, peaks, title, filename, directory='a
     plt.savefig(f'{directory}/{filename}')
     plt.close()
 
+def calculate_similarity2(sample_peaks):
+    """Calculate similarity between a sample spectrum and all reference spectra.
+    
+    This function compares the peaks of a sample spectrum with all reference spectra in the 
+    database to find the best match. For each reference spectrum, it calculates similarity 
+    scores based on the position and intensity of peaks within a specified window. The 
+    similarity calculation weighs peak position differences more heavily (80%) than 
+    intensity differences (20%).
+    
+    Args:
+        sample_peaks (list): List of detected peaks in the sample spectrum as (wavelength, intensity) tuples
+        
+    Returns:
+        tuple: A tuple containing:
+            - dict: Dictionary mapping reference material IDs to their similarity scores
+            - str: Material ID of the best match (highest similarity score)
+    """
+    similarities = {}
+    window = 35  # Wavelength window size for peak matching (±25 cm⁻¹)
 
+    for name in reference_spectra_ids:
+        # intensities, wavelengths, comment = get_spectrum_data(name)
+        # ref_peaks = process_spectrum(intensities, wavelengths)
+
+        #Use pre-calculated peaks from the database for efficiency
+        ref_peaks = get_peaks(name)
+
+        similarity_scores = []
+
+        for sample_peak in sample_peaks:
+            # Check suitable matching peaks within a ±window range
+            sample_peak_score = -1
+            sample_wavenumber = sample_peak[0]
+            found_peak = False
+
+            for ref_peak in ref_peaks:
+                ref_wavenumber = ref_peak[0]
+                ref_intensity = ref_peak[1]
+
+                # Check if the reference peak is within the specified window
+                if abs(sample_wavenumber - ref_wavenumber) <= window:
+                    position_diff = abs(sample_wavenumber - ref_wavenumber) / ref_wavenumber
+                    intensity_diff = abs(sample_peak[1] - ref_intensity) / ref_intensity
+
+                    # Calculate similarity with 80% weight on position and 20% on intensity
+                    similarity = 1 - (0.8 * position_diff + 0.2 * intensity_diff)
+                    weighted_similarity = similarity * ref_intensity
+
+                    sample_peak_score = weighted_similarity
+                    found_peak = True
+
+            if found_peak == False:
+                similarity_scores.append(-1)
+            similarity_scores.append(sample_peak_score)
+
+        # Calculate a weighted average similarity for this reference
+        if similarity_scores:
+            similarities[name] = np.average(similarity_scores)
+        else:
+            similarities[name] = 0
+
+    # Determine the best match based on the similarity scores
+    best_match = max(similarities, key=similarities.get) if similarities else None
+    return similarities, best_match
 
 def calculate_similarity(sample_peaks):
     """Calculate similarity using a weighted match score with Gaussian weighting.
@@ -211,7 +274,7 @@ def calculate_similarity(sample_peaks):
         match_scores = []
 
         for sample_wavenumber, sample_intensity in sample_peaks:
-            best_score = 0  # Initialize to 0 instead of -1
+            best_score = -1
 
             for ref_wavenumber, ref_intensity in ref_peaks:
                 position_diff = sample_wavenumber - ref_wavenumber
@@ -233,7 +296,7 @@ def calculate_similarity(sample_peaks):
                     if score > best_score:
                         best_score = score
 
-            # Add the best score for this sample peak (0 if unmatched)
+            # Add the best score for this sample peak (even if unmatched, will be -1)
             match_scores.append(best_score)
 
         # Average over all match scores for this reference
