@@ -3,14 +3,10 @@ TODO:
 
 Future tasks to do(Future guy/gal or again Alan):
 ------------
--adapt software to the lowtech raman spectroscope:
-    -add conversion of wavelenght to wavenumber (depends on final laser used in the raman spectroscope)
-    -input/output format, convert to csv for simplicity and human editing?
-    -test software on raspberry pi
-
 -add more microplastics to reference database
--refine sample history (timestamps, order in history ...)
--make a top 3 or top matching canditate in score order
 -correction for match overlap? Seems the reference has an offset
 -github large file problem (database)
--improve matching algorithm,consider missing peaks outside of reference range
+-improve matching algorithm: consider missing peaks outside of reference range
+-Superimposed plots: Implement a Neural Network to predict multiple matches
+
+
